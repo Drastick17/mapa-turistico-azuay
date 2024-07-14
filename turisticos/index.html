@@ -11,7 +11,20 @@
     <title>Mapa Turistico del Azuay</title>
   </head>
   <body>
-    <div id="map"></div>
+    <div class="root">
+      <div id="map"></div>
+    </div>
+
+    <div class="container" id="info">
+
+    </div>
+
+    <template id="selector">
+        <ul class="layers-selector">
+        </ul>
+    </template>
+
+    <script type="module" src="./selector.js"></script>
     <script type="module" src="./main.js"></script>
   </body>
 </html>
