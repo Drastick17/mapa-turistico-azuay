@@ -46,7 +46,7 @@ const styles = {
   "ne:Ruta Completa Cuenca Sur": new Style({
     stroke: new Stroke({
       color: "#06f",
-      width: 8,
+      width: 2,
     }),
     fill: new Fill({
       color: "rgba(0, 0, 255, 0.2)",
@@ -55,7 +55,34 @@ const styles = {
   "ne:Ruta Completa Cuenca Norte": new Style({
     stroke: new Stroke({
       color: "#06f",
-      width: 8,
+      width: 2,
+    }),
+    fill: new Fill({
+      color: "rgba(0, 0, 255, 0.2)",
+    }),
+  }),
+  "ne:Ruta busa": new Style({
+    stroke: new Stroke({
+      color: "#06f",
+      width: 2,
+    }),
+    fill: new Fill({
+      color: "rgba(0, 0, 255, 0.2)",
+    }),
+  }),
+  "ne:Ruta Cajas": new Style({
+    stroke: new Stroke({
+      color: "#06f",
+      width: 2,
+    }),
+    fill: new Fill({
+      color: "rgba(0, 0, 255, 0.2)",
+    }),
+  }),
+  'ne:Recorrido Busa': new Style({
+    stroke: new Stroke({
+      color: "#06f",
+      width: 2,
     }),
     fill: new Fill({
       color: "rgba(0, 0, 255, 0.2)",
@@ -85,6 +112,7 @@ async function getCapabilities() {
       title: node.getElementsByTagName("Title")[0].textContent,
       lowerCorner: node.getElementsByTagName("ows:LowerCorner")[0].textContent,
       upperCorner: node.getElementsByTagName("ows:UpperCorner")[0].textContent,
+      render: true, // Add render property to control layer visibility
     };
   });
 
@@ -94,9 +122,7 @@ async function getCapabilities() {
       const [lowerX, lowerY] = layerInfo.lowerCorner.split(" ");
       const [upperX, upperY] = layerInfo.upperCorner.split(" ");
       return {
-        render: true,
-        name: layerInfo.name,
-        title: layerInfo.title,
+        ...layerInfo, // Include existing properties
         url: `${baseUrl}/ne/wfs?service=WFS&version=1.1.0&request=GetFeature&typeName=${layerInfo.name}&outputFormat=application/json&srsname=EPSG:4326&bbox=${lowerX},${lowerY},${upperX},${upperY},EPSG:4326`,
       };
     });
@@ -107,14 +133,15 @@ async function initMap() {
   const layers = await getCapabilities();
   const layersContainer = setDOMLayers(layers);
   layersContainer.addEventListener("click", (e) => {
-    if (e.target.tagName == "INPUT") {
+    if (e.target.tagName === "INPUT") {
+      const layerName = e.target.value;
       layers.forEach((layer) => {
-        if (layer.name === e.target.value && layer.render) {
-          layer.render = false;
-        }else{
-          layer.render = true;
+        if (layer.name === layerName) {
+          layer.render = e.target.checked;
         }
       });
+
+      renderLayers();
     }
   });
 
@@ -133,107 +160,74 @@ async function initMap() {
     }),
   });
 
-  layers.forEach((layerInfo) => {
-    if (!layerInfo.render) return;
-    const vectorSource = new VectorSource({
-      format: new GeoJSON(),
-      url: layerInfo.url,
-      strategy: bboxStrategy,
+  const vectorLayers = [];
+
+  const renderLayers = () => {
+    // Clear vector layers from the map
+    vectorLayers.forEach((layer) => {
+      map.removeLayer(layer);
     });
-    const vectorLayer = new VectorLayer({
-      source: vectorSource,
-      title: layerInfo.title,
-      style: styles[layerInfo.name],
+    vectorLayers.length = 0;
+
+    layers.forEach((layerInfo, index) => {
+      if (layerInfo.render) {
+        const vectorSource = new VectorSource({
+          format: new GeoJSON(),
+          url: layerInfo.url,
+          strategy: bboxStrategy,
+        });
+        const vectorLayer = new VectorLayer({
+          source: vectorSource,
+          title: layerInfo.title,
+          style: styles[layerInfo.name],
+        });
+        map.addLayer(vectorLayer);
+        vectorLayers.push(vectorLayer);
+      }
     });
+  };
 
-    map.addLayer(vectorLayer);
-  });
+  renderLayers();
 
-  const selectedStyle = new Style({
-    fill: new Fill({
-      color: "rgba(255, 255, 255, 0.6)",
-    }),
-    stroke: new Stroke({
-      color: "rgba(255, 255, 255, 0.7)",
-      width: 2,
-    }),
-  });
-
-  // a normal select interaction to handle click
-  const select = new Select({
-    style: function () {
-      const color = "rgba(0, 255, 0, 0.4)";
-      selectedStyle.getFill().setColor(color);
-      return selectedStyle;
-    },
-  });
-
+  // Select interaction for feature selection
+  const select = new Select();
   map.addInteraction(select);
-
-  const selectedFeatures = select.getFeatures();
 
   const dragBox = new DragBox({
     condition: platformModifierKeyOnly,
   });
-
   map.addInteraction(dragBox);
 
   dragBox.on("boxend", function () {
     const boxExtent = dragBox.getGeometry().getExtent();
 
-    const worldExtent = map.getView().getProjection().getExtent();
-    const worldWidth = getWidth(worldExtent);
-    const startWorld = Math.floor((boxExtent[0] - worldExtent[0]) / worldWidth);
-    const endWorld = Math.floor((boxExtent[2] - worldExtent[0]) / worldWidth);
+    const selectedFeatures = select.getFeatures();
+    selectedFeatures.clear(); // Clear previously selected features
 
-    for (let world = startWorld; world <= endWorld; ++world) {
-      const left = Math.max(boxExtent[0] - world * worldWidth, worldExtent[0]);
-      const right = Math.min(boxExtent[2] - world * worldWidth, worldExtent[2]);
-      const extent = [left, boxExtent[1], right, boxExtent[3]];
+    vectorLayers.forEach((vectorLayer) => {
+      const source = vectorLayer.getSource();
+      source.forEachFeatureIntersectingExtent(boxExtent, (feature) => {
+        selectedFeatures.push(feature);
+      });
+    });
 
-      const boxFeatures = vectorSource
-        .getFeaturesInExtent(extent)
-        .filter(
-          (feature) =>
-            !selectedFeatures.getArray().includes(feature) &&
-            feature.getGeometry().intersectsExtent(extent)
-        );
-
-      // features that intersect the box geometry are added to the
-      // collection of selected features
-      const rotation = map.getView().getRotation();
-      const oblique = rotation % (Math.PI / 2) !== 0;
-
-      // when the view is obliquely rotated the box extent will
-      if (oblique) {
-        const anchor = [0, 0];
-        const geometry = dragBox.getGeometry().clone();
-        geometry.translate(-world * worldWidth, 0);
-        geometry.rotate(-rotation, anchor);
-        const extent = geometry.getExtent();
-        boxFeatures.forEach(function (feature) {
-          const geometry = feature.getGeometry().clone();
-          geometry.rotate(-rotation, anchor);
-          if (geometry.intersectsExtent(extent)) {
-            selectedFeatures.push(feature);
-          }
-        });
-      } else {
-        selectedFeatures.extend(boxFeatures);
-      }
-    }
+    updateInfoBox(selectedFeatures);
   });
 
   dragBox.on("boxstart", function () {
-    selectedFeatures.clear();
+    select.getFeatures().clear();
+    clearInfoBox();
   });
 
   const infoBox = document.getElementById("info");
 
-  selectedFeatures.on(["add", "remove"], function () {
+  function updateInfoBox(selectedFeatures) {
     const names = selectedFeatures.getArray().map((feature) => {
-      return `${feature.get("NOM_CANTON")}-${feature.get("PARROQUIA")}`;
+      return feature.get("NOM_CANTON")
+        ? `${feature.get("NOM_CANTON")}${feature.get("PARROQUIA")}`
+        :feature.get("Name")
     });
+
     if (names.length > 0) {
       infoBox.classList.add("show");
       infoBox.innerHTML = names.join(", ");
@@ -241,6 +235,16 @@ async function initMap() {
       infoBox.classList.remove("show");
       infoBox.innerHTML = "None";
     }
+  }
+
+  function clearInfoBox() {
+    infoBox.classList.remove("show");
+    infoBox.innerHTML = "None";
+  }
+
+  select.on(["select"], function () {
+    const selectedFeatures = select.getFeatures();
+    updateInfoBox(selectedFeatures);
   });
 }
 
