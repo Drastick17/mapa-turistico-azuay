@@ -9,13 +9,21 @@
     />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Mapa Turistico del Azuay</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Open+Sans:ital,wght@0,300..800;1,300..800&display=swap" rel="stylesheet">
   </head>
   <body>
     <div class="root">
       <div id="map"></div>
     </div>
 
-    <div class="container" id="info"></div>
+    <div class="container" id="info">
+      <div style="position: relative;width: 100%;height: 100%;">
+        <img src="" alt="" id="info-img" />
+        <h3 id="info-title"></h3>
+      </div>
+    </div>
 
     <template id="selector">
       <ul class="layers-selector"></ul>

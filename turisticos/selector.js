@@ -7,7 +7,6 @@ export default function setDOMLayers(layers) {
     .map((layer) => {
       if (["Azuay", "Rutas — cortado", "Cuenca Canton"].includes(layer.title))
         return "";
-    console.log(layer.name)
       const label = document.createElement("label");
       const checkbox = document.createElement("input");
       checkbox.setAttribute("type", "checkbox");

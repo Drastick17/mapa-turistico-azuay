@@ -43,46 +43,55 @@ const styles = {
       color: "rgba(0, 255, 0, 0.2)",
     }),
   }),
-  "ne:Ruta Completa Cuenca Sur": new Style({
+  "ne:Recorrido Cuenca Sur": new Style({
     stroke: new Stroke({
       color: "#06f",
-      width: 2,
+      width: 2.5,
     }),
     fill: new Fill({
       color: "rgba(0, 0, 255, 0.2)",
     }),
   }),
-  "ne:Ruta Completa Cuenca Norte": new Style({
+  "ne:Recorrido Cuenca Norte": new Style({
     stroke: new Stroke({
       color: "#06f",
-      width: 2,
+      width: 2.5,
     }),
     fill: new Fill({
       color: "rgba(0, 0, 255, 0.2)",
     }),
   }),
-  "ne:Ruta busa": new Style({
+  "ne:Recorrido busa": new Style({
     stroke: new Stroke({
       color: "#06f",
-      width: 2,
+      width: 2.5,
     }),
     fill: new Fill({
       color: "rgba(0, 0, 255, 0.2)",
     }),
   }),
-  "ne:Ruta Cajas": new Style({
+  "ne:Recorrido Cajas": new Style({
     stroke: new Stroke({
       color: "#06f",
-      width: 2,
+      width: 2.5,
     }),
     fill: new Fill({
       color: "rgba(0, 0, 255, 0.2)",
     }),
   }),
-  'ne:Recorrido Busa': new Style({
+  "ne:Recorrido Busa": new Style({
     stroke: new Stroke({
       color: "#06f",
-      width: 2,
+      width: 2.5,
+    }),
+    fill: new Fill({
+      color: "rgba(0, 0, 255, 0.2)",
+    }),
+  }),
+  "ne:Recorrido Baños Cuenca": new Style({
+    stroke: new Stroke({
+      color: "#06f",
+      width: 2.5,
     }),
     fill: new Fill({
       color: "rgba(0, 0, 255, 0.2)",
@@ -112,7 +121,7 @@ async function getCapabilities() {
       title: node.getElementsByTagName("Title")[0].textContent,
       lowerCorner: node.getElementsByTagName("ows:LowerCorner")[0].textContent,
       upperCorner: node.getElementsByTagName("ows:UpperCorner")[0].textContent,
-      render: true, // Add render property to control layer visibility
+      render: true,
     };
   });
 
@@ -122,7 +131,7 @@ async function getCapabilities() {
       const [lowerX, lowerY] = layerInfo.lowerCorner.split(" ");
       const [upperX, upperY] = layerInfo.upperCorner.split(" ");
       return {
-        ...layerInfo, // Include existing properties
+        ...layerInfo,
         url: `${baseUrl}/ne/wfs?service=WFS&version=1.1.0&request=GetFeature&typeName=${layerInfo.name}&outputFormat=application/json&srsname=EPSG:4326&bbox=${lowerX},${lowerY},${upperX},${upperY},EPSG:4326`,
       };
     });
@@ -176,6 +185,7 @@ async function initMap() {
           url: layerInfo.url,
           strategy: bboxStrategy,
         });
+
         const vectorLayer = new VectorLayer({
           source: vectorSource,
           title: layerInfo.title,
@@ -189,7 +199,6 @@ async function initMap() {
 
   renderLayers();
 
-  // Select interaction for feature selection
   const select = new Select();
   map.addInteraction(select);
 
@@ -202,7 +211,7 @@ async function initMap() {
     const boxExtent = dragBox.getGeometry().getExtent();
 
     const selectedFeatures = select.getFeatures();
-    selectedFeatures.clear(); // Clear previously selected features
+    selectedFeatures.clear();
 
     vectorLayers.forEach((vectorLayer) => {
       const source = vectorLayer.getSource();
@@ -222,21 +231,30 @@ async function initMap() {
   const infoBox = document.getElementById("info");
 
   function updateInfoBox(selectedFeatures) {
+    const img = document.querySelector("#info-img");
+    const title = document.querySelector("#info-title");
+
     const names = selectedFeatures.getArray().map((feature) => {
       return feature.get("NOM_CANTON")
-        ? `${feature.get("NOM_CANTON")}${feature.get("PARROQUIA")}`
-        :feature.get("Name")
+        ? `${feature.get("NOM_CANTON")}-${feature.get("PARROQUIA")}`
+        : feature.get("Name");
     });
 
-    if (names.length > 0) {
-      infoBox.classList.add("show");
-      infoBox.innerHTML = names.join(", ");
-    } else {
-      infoBox.classList.remove("show");
-      infoBox.innerHTML = "None";
-    }
-  }
+    if (!names.length) return;
 
+    if (!names.includes("-")) {
+      infoBox.classList.add("show");
+      title.innerText = names.join(", ");
+      img.src = `./public/images/${names}.webp`;
+    }
+
+    if (names[0].includes("-") || names.join(',').includes(",")) {
+      infoBox.classList.remove("show");
+    }
+
+    console.log(names);
+
+  }
   function clearInfoBox() {
     infoBox.classList.remove("show");
     infoBox.innerHTML = "None";
@@ -245,6 +263,35 @@ async function initMap() {
   select.on(["select"], function () {
     const selectedFeatures = select.getFeatures();
     updateInfoBox(selectedFeatures);
+  });
+
+  // Download button functionality
+  const downloadBtn = document.getElementById("download-btn");
+  downloadBtn.addEventListener("click", function () {
+    const mapCanvas = document.createElement("canvas");
+    const mapSize = map.getSize();
+    mapCanvas.width = mapSize[0];
+    mapCanvas.height = mapSize[1];
+
+    const mapContext = mapCanvas.getContext("2d");
+
+    map.once("rendercomplete", function () {
+      mapContext.drawImage(
+        this.getTargetElement().querySelector("canvas"),
+        0,
+        0,
+        mapSize[0],
+        mapSize[1]
+      );
+
+      const mapImage = mapCanvas.toDataURL("image/png");
+      const link = document.createElement("a");
+      link.href = mapImage;
+      link.download = "map.png";
+      link.click();
+    });
+
+    map.renderSync();
   });
 }
 
